@@ -246,6 +246,28 @@ workflows:
           - build
         context: tasking-manager-staging
         stack_name: "staging"
+
+    - backend_deploy:
+        name: test
+        filters:
+          branches:
+            only:
+            - fix/sentry-environments
+        requires:
+          - build
+        stack_name: "test"
+        context: tasking-manager-staging
+    - frontend_deploy:
+        name: test
+        filters:
+          branches:
+            only:
+            - fix/sentry-environments
+        requires:
+          - build
+        context: tasking-manager-staging
+        stack_name: "test"
+
     - backend_deploy:
         name: teachosm
         filters:
