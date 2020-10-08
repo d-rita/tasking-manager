@@ -84,14 +84,10 @@ jobs:
     - checkout
     - setup_remote_docker
     - run:
-        name: Set Environment Variables
-        command: |
-          echo "export JSON_CONFIG='{\"GitSha\": \"$CIRCLE_SHA1\", \"NetworkEnvironment\": \"${ENVIRONMENT_NAME}\", \"AutoscalingPolicy\": \"${AUTOSCALING_POLICY}\", \"DBSnapshot\": \"\", \"DatabaseDump\": \"\", \"NewRelicLicense\": \"${NEW_RELIC_LICENSE}\", \"PostgresDB\": \"${POSTGRES_DB}\", \"PostgresPassword\": \"${POSTGRES_PASSWORD}\", \"PostgresUser\": \"${<POSTGRES_USER}\", \"DatabaseSize\": \"${DB_SIZE}\", \"ELBSubnets\": \"${ELB_SUBNETS}\", \"SSLCertificateIdentifier\": \"${SSL_CERTIFICATE_ID}\", \"TaskingManagerLogDirectory\": \"${TM_LOG_DIR}\", \"TaskingManagerConsumerKey\": \"${TM_CONSUMER_KEY}\", \"TaskingManagerConsumerSecret\": \"${TM_CONSUMER_SECRET}\", \"TaskingManagerSecret\": \"${TM_SECRET}\", \"TaskingManagerLogLevel\": \"${TM_LOG_LEVEL}\", \"TaskingManagerImageUploadAPIURL\": \"${TM_IMAGE_UPLOAD_API_URL}\", \"TaskingManagerImageUploadAPIKey\": \"${TM_IMAGE_UPLOAD_API_KEY}\", \"TaskingManagerURL\": \"${TM_APP_URL}\", \"TaskingManagerOrgName\": \"${TM_ORG_NAME}\", \"TaskingManagerOrgCode\": \"${TM_ORG_CODE}\", \"SentryBackendDSN\": \"${TM_SENTRY_BACKEND_DSN}\", \"TaskingManagerEmailContactAddress\": \"${TM_EMAIL_CONTACT_ADDRESS}\"}'" >> $BASH_ENV
-    - run:
         name: Install modules
         command: |
           sudo apt-get update
-          sudo apt-get install -y libgeos-dev # Required for shapely
+          sudo apt-get install -y libgeos-dev jq # Required for shapely
           sudo yarn global add @mapbox/cfn-config @mapbox/cloudfriend
           sudo pip3 install awscli --upgrade
     - run:
@@ -147,16 +143,19 @@ jobs:
             exit 125
           fi
     - run:
-        name: Create config file
+        name: Download config file
         command: |
-          touch $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
-          echo $JSON_CONFIG > $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
+          echo 'export CIRCLE_SHA1=$CIRCLE_SHA1' >> $BASH_ENV
+          source $BASH_ENV
+          # touch $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
+          export SHA=$CIRCLE_SHA1
+          aws s3 cp s3://hot-cfn-config/tasking-manager/tasking-manager-<< parameters.stack_name >>-${AWS_REGION}.cfn.json - | jq --arg SHA "$SHA" '.GitSha = $SHA' > $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
     - deploy:
         name: Deploy to << parameters.stack_name >>
         command: |
           export NODE_PATH=/usr/local/share/.config/yarn/global/node_modules/
           validate-template $CIRCLE_WORKING_DIRECTORY/scripts/aws/cloudformation/tasking-manager.template.js
-          cfn-config update << parameters.stack_name >> $CIRCLE_WORKING_DIRECTORY/scripts/aws/cloudformation/tasking-manager.template.js -f -c hot-cfn-config -t hot-cfn-config -r $AWS_REGION -p "$JSON_CONFIG"
+          cfn-config update << parameters.stack_name >> $CIRCLE_WORKING_DIRECTORY/scripts/aws/cloudformation/tasking-manager.template.js -f -c hot-cfn-config -t hot-cfn-config -r $AWS_REGION -p "$CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json"
     - run:
         name: Cleanup
         when: always
