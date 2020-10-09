@@ -77,6 +77,9 @@ jobs:
       stack_name:
         description: "the name of the stack for cfn-config"
         type: string
+      gitsha:
+        description: "The 40 char hash of the git commit"
+        type: string
     working_directory: /home/circleci/tasking-manager
     docker:
     - image: circleci/python:3.7-buster-node
@@ -145,11 +148,8 @@ jobs:
     - run:
         name: Download config file
         command: |
-          echo 'export CIRCLE_SHA1=$CIRCLE_SHA1' >> $BASH_ENV
-          source $BASH_ENV
-          # touch $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
-          export SHA=$CIRCLE_SHA1
-          aws s3 cp s3://hot-cfn-config/tasking-manager/tasking-manager-<< parameters.stack_name >>-${AWS_REGION}.cfn.json - | jq --arg SHA "$SHA" '.GitSha = $SHA' > $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
+          export GITSHA=<< parameters.gitsha >>
+          aws s3 cp s3://hot-cfn-config/tasking-manager/tasking-manager-<< parameters.stack_name >>-${AWS_REGION}.cfn.json - | jq --arg GITSHA "$GITSHA" '.GitSha = $GITSHA' > $CIRCLE_WORKING_DIRECTORY/cfn-config-<< parameters.stack_name >>.json
     - deploy:
         name: Deploy to << parameters.stack_name >>
         command: |
@@ -234,6 +234,7 @@ workflows:
         requires:
           - build
         stack_name: "staging"
+        gitsha: $CIRCLE_SHA1
         context: tasking-manager-staging
     - frontend_deploy:
         name: staging
@@ -255,6 +256,7 @@ workflows:
         requires:
           - build
         stack_name: "test"
+        gitsha: $CIRCLE_SHA1
         context: tasking-manager-staging
     - frontend_deploy:
         name: test
@@ -266,7 +268,6 @@ workflows:
           - build
         context: tasking-manager-staging
         stack_name: "test"
-
     - backend_deploy:
         name: teachosm
         filters:
@@ -276,6 +277,7 @@ workflows:
         requires:
           - build
         stack_name: "teachosm"
+        gitsha: $CIRCLE_SHA1
         context: tasking-manager-teachosm
     - frontend_deploy:
         name: teachosm
@@ -296,6 +298,7 @@ workflows:
         requires:
           - build
         stack_name: "assisted"
+        gitsha: $CIRCLE_SHA1
         context: tasking-manager-assisted
     - frontend_deploy:
         name: assisted
@@ -316,6 +319,7 @@ workflows:
             only:
               - deployment/hot-tasking-manager
         stack_name: "tm4-production"
+        gitsha: $CIRCLE_SHA1
         context: tasking-manager-tm4-production
   frontend-production:
     jobs:
